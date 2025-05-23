@@ -1,0 +1,4 @@
+PyMuPDF
+pdf2image
+docx2txt
+docx2pdf
