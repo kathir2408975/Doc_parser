@@ -3,11 +3,13 @@ import fitz  # PyMuPDF
 from pdf2image import convert_from_path
 import docx2txt
 from docx2pdf import convert
+import pandas as pd
 
 # Change this to your poppler bin folder path
 POPPLER_PATH = r"C:\Users\UTHRAVFST\AppData\Roaming\Microsoft\Windows\Network Shortcuts\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 
-input_folder = r"all_file_1"
+input_folder = r"C:\kathir\all_file_1"
+
 
 def extract_from_pdf(pdf_path, file_name):
     doc = fitz.open(pdf_path)
@@ -22,6 +24,13 @@ def extract_from_pdf(pdf_path, file_name):
         page = doc.load_page(page_num)
         text = page.get_text().strip()
 
+        if page_num == 12:
+            tables = page.find_tables()
+            df_table = pd.DataFrame(tables.tables[0].extract())
+            df_table = df_table.dropna(axis=1, how="all")
+            df_table = df_table.loc[:, ~(df_table.isna() | (df_table == "")).all()]
+            print(df_table)
+
         if len(text) > 20:
             full_text += f"\n--- Page {page_num + 1} ---\n{text}\n"
 
@@ -31,16 +40,22 @@ def extract_from_pdf(pdf_path, file_name):
                 base_image = doc.extract_image(xref)
                 image_bytes = base_image["image"]
                 image_ext = base_image["ext"]
-                image_filename = f"{file_name}_page{page_num + 1}_img{img_index}.{image_ext}"
+                image_filename = (
+                    f"{file_name}_page{page_num + 1}_img{img_index}.{image_ext}"
+                )
                 with open(os.path.join(output_path, image_filename), "wb") as img_file:
                     img_file.write(image_bytes)
         else:
             # Convert full page to image if text is minimal
-            images = convert_from_path(pdf_path, first_page=page_num+1, last_page=page_num+1, poppler_path=POPPLER_PATH)
+            images = convert_from_path(
+                pdf_path,
+                first_page=page_num + 1,
+                last_page=page_num + 1,
+                poppler_path=POPPLER_PATH,
+            )
             for i, img in enumerate(images):
                 image_filename = f"{file_name}_page{page_num + 1}_converted.png"
                 img.save(os.path.join(output_path, image_filename), "PNG")
-
 
     doc.close()
 
@@ -48,6 +63,7 @@ def extract_from_pdf(pdf_path, file_name):
     text_file_path = os.path.join(output_path, f"{file_name}.txt")
     with open(text_file_path, "w", encoding="utf-8") as f:
         f.write(full_text)
+
 
 def extract_from_docx(docx_path, file_name):
     output_path = os.path.join(input_folder, "extracted_output_1", file_name)
@@ -78,7 +94,9 @@ def extract_from_docx(docx_path, file_name):
     # Rename images extracted by docx2txt
     img_counter = 1
     for img_file in os.listdir(output_path):
-        if img_file.lower().startswith("image") and img_file.lower().endswith((".png", ".jpg", ".jpeg")):
+        if img_file.lower().startswith("image") and img_file.lower().endswith(
+            (".png", ".jpg", ".jpeg")
+        ):
             old_path = os.path.join(output_path, img_file)
             ext = os.path.splitext(img_file)[1]
             new_name = f"{file_name}_page{img_counter}{ext}"
