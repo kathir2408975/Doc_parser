@@ -24,15 +24,57 @@ def extract_from_pdf(pdf_path, file_name):
         page = doc.load_page(page_num)
         text = page.get_text().strip()
 
-        if page_num == 12:
-            tables = page.find_tables()
-            df_table = pd.DataFrame(tables.tables[0].extract())
-            df_table = df_table.dropna(axis=1, how="all")
-            df_table = df_table.loc[:, ~(df_table.isna() | (df_table == "")).all()]
-            print(df_table)
+        # if page_num == 12:
+        #     tables = page.find_tables()
+        #     df_table = pd.DataFrame(tables.tables[0].extract())
+        #     df_table = df_table.dropna(axis=1, how="all")
+        #     df_table = df_table.loc[:, ~(df_table.isna() | (df_table == "")).all()]
+        #     print(df_table)
 
         if len(text) > 20:
-            full_text += f"\n--- Page {page_num + 1} ---\n{text}\n"
+            # full_text += f"\n--- Page {page_num + 1} ---\n{text}\n"
+
+            # 1. Extract tables and their bounding boxes for page
+            tables = page.find_tables()
+            table_bboxes = [table.bbox for table in tables.tables]
+
+            # Store extracted structured table data for page
+            # table.extract() returns a list of lists (rows and columns)
+            page_structured_tables = [table.extract() for table in tables.tables]
+
+            # 2. Extract all text with detailed coordinates for page
+            page_text_data = page.get_text("dict")
+
+            current_page_non_table_lines = ""
+            current_page_table_lines = ""
+
+            # Iterate through text blocks to determine if they are in a table
+            for block in page_text_data["blocks"]:
+                if block["type"] == 0:  # type 0 means it's a text block
+                    block_bbox = fitz.Rect(block["bbox"])
+
+                    is_in_table = False
+                    for table_bbox in table_bboxes:
+                        if block_bbox.intersects(table_bbox):
+                            is_in_table = True
+                            break
+
+                    # Reconstruct the text from the block's lines/spans
+                    block_full_text = ""
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            block_full_text += span["text"]
+                        block_full_text += (
+                            "\n"  # Add newline for each line within the block
+                        )
+
+                    full_text += block_full_text.strip()
+
+                    if is_in_table:
+                        current_page_table_lines += block_full_text.strip()
+
+                    else:
+                        current_page_non_table_lines += block_full_text.strip()
 
             images = page.get_images(full=True)
             for img_index, img in enumerate(images, start=1):
