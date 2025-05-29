@@ -4,6 +4,8 @@ from pdf2image import convert_from_path
 import docx2txt
 from docx2pdf import convert
 import pandas as pd
+from docling.document_converter import DocumentConverter
+from pathlib import Path
 
 # Change this to your poppler bin folder path
 POPPLER_PATH = r"C:\Users\UTHRAVFST\AppData\Roaming\Microsoft\Windows\Network Shortcuts\Release-24.08.0-0\poppler-24.08.0\Library\bin"
@@ -12,12 +14,25 @@ input_folder = r"C:\kathir\all_file_1"
 
 
 def extract_from_pdf(pdf_path, file_name):
-    doc = fitz.open(pdf_path)
-
-    # Create folder for this PDF
+    
     output_path = os.path.join(input_folder, "extracted_output_1", file_name)
     os.makedirs(output_path, exist_ok=True)
 
+    converter = DocumentConverter()
+    result = converter.convert(pdf_path, max_num_pages=10)
+    text_file_path = os.path.join(output_path, f"{file_name}.txt")
+
+    with open(text_file_path, "w", encoding='utf-8') as f:
+        f.write("# Docling Output\n\n")
+        f.write(result.document.export_to_markdown())
+    
+    with open(text_file_path, "r", encoding="utf-8") as file:
+    
+        markdown_content = file.read()
+
+    print("debugging")
+
+    doc = fitz.open(pdf_path)
     full_text = ""
 
     for page_num in range(len(doc)):
@@ -34,47 +49,8 @@ def extract_from_pdf(pdf_path, file_name):
         if len(text) > 20:
             # full_text += f"\n--- Page {page_num + 1} ---\n{text}\n"
 
-            # 1. Extract tables and their bounding boxes for page
             tables = page.find_tables()
-            table_bboxes = [table.bbox for table in tables.tables]
-
-            # Store extracted structured table data for page
-            # table.extract() returns a list of lists (rows and columns)
-            page_structured_tables = [table.extract() for table in tables.tables]
-
-            # 2. Extract all text with detailed coordinates for page
-            page_text_data = page.get_text("dict")
-
-            current_page_non_table_lines = ""
-            current_page_table_lines = ""
-
-            # Iterate through text blocks to determine if they are in a table
-            for block in page_text_data["blocks"]:
-                if block["type"] == 0:  # type 0 means it's a text block
-                    block_bbox = fitz.Rect(block["bbox"])
-
-                    is_in_table = False
-                    for table_bbox in table_bboxes:
-                        if block_bbox.intersects(table_bbox):
-                            is_in_table = True
-                            break
-
-                    # Reconstruct the text from the block's lines/spans
-                    block_full_text = ""
-                    for line in block["lines"]:
-                        for span in line["spans"]:
-                            block_full_text += span["text"]
-                        block_full_text += (
-                            "\n"  # Add newline for each line within the block
-                        )
-
-                    full_text += block_full_text.strip()
-
-                    if is_in_table:
-                        current_page_table_lines += block_full_text.strip()
-
-                    else:
-                        current_page_non_table_lines += block_full_text.strip()
+            
 
             images = page.get_images(full=True)
             for img_index, img in enumerate(images, start=1):
@@ -102,9 +78,9 @@ def extract_from_pdf(pdf_path, file_name):
     doc.close()
 
     # Save all collected text in one file
-    text_file_path = os.path.join(output_path, f"{file_name}.txt")
-    with open(text_file_path, "w", encoding="utf-8") as f:
-        f.write(full_text)
+    # text_file_path = os.path.join(output_path, f"{file_name}.txt")
+    # with open(text_file_path, "w", encoding="utf-8") as f:
+    #     f.write(full_text)
 
 
 def extract_from_docx(docx_path, file_name):
@@ -149,6 +125,7 @@ def extract_from_docx(docx_path, file_name):
 
 for file in os.listdir(input_folder):
     file_path = os.path.join(input_folder, file)
+    file_path = Path(file_path).as_posix()
     file_name, ext = os.path.splitext(file)
     ext = ext.lower()
 
