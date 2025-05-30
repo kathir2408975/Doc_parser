@@ -1,11 +1,13 @@
 import os, fitz, docx2txt, pdfplumber, base64, json
 from pdf2image import convert_from_path
 from docx2pdf import convert
+from mimetypes import guess_type
 
 # import pandas as pd
 # from docling.document_converter import DocumentConverter
 from pathlib import Path
 from langchain.chat_models import AzureChatOpenAI
+from langchain_core.messages import HumanMessage
 
 POPPLER_PATH = r"C:\Users\UTHRAVFST\AppData\Roaming\Microsoft\Windows\Network Shortcuts\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 input_folder = r"C:\kathir\all_file_1"
@@ -75,9 +77,23 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
             base64_image = capture_page_as_base64(
                 pdf_path, page, tables_as_images_output_path
             )
-            summary = az_llm.invoke(
-                f"Summarize all the tables from the following image (base64 format): {base64_image}"
-            )
+            # summary = az_llm.invoke(
+            #     f"Summarize all the tables from the following image (base64 format): {base64_image}"
+            # )
+            messages_base64 = [
+                HumanMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "Summarize all the tables in the image. Remember to summarize only tables as it is and no information should be left mentioned in the tables.",
+                        },
+                        {"type": "image_url", "image_url": {"url": base64_image}},
+                    ]
+                )
+            ]
+
+            response_base64 = az_llm.invoke(messages_base64)
+            summary = response_base64.content
             print(f"Summary for page {page}: {summary}")
         else:
             print("Table not present on page:", page)
@@ -283,8 +299,10 @@ def capture_page_as_base64(pdf_path, page_num, tables_as_images_output_path):
 
     with open(image_path, "rb") as image_file:
         base64_string = base64.b64encode(image_file.read()).decode("utf-8")
+        mime_type, _ = guess_type(image_path)
+        image_to_return = f"data:{mime_type};base64,{base64_string}"
 
-    return base64_string
+    return image_to_return
 
 
 for file in os.listdir(input_folder):
