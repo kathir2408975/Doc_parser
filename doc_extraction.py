@@ -1,16 +1,29 @@
-import os
-import fitz  # PyMuPDF
+import os, fitz, docx2txt, pdfplumber, base64, json
 from pdf2image import convert_from_path
-import docx2txt
 from docx2pdf import convert
-import pdfplumber
 
 # import pandas as pd
 # from docling.document_converter import DocumentConverter
 from pathlib import Path
+from langchain.chat_models import AzureChatOpenAI
 
 POPPLER_PATH = r"C:\Users\UTHRAVFST\AppData\Roaming\Microsoft\Windows\Network Shortcuts\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 input_folder = r"C:\kathir\all_file_1"
+
+azure_openai_creds_json_path = r"C:\Pranav\azure_openai_creds.json"
+
+with open(azure_openai_creds_json_path, "r") as file:
+    openai_creds = json.load(file)
+
+print(openai_creds)
+
+
+az_llm = AzureChatOpenAI(
+    deployment_name=openai_creds["deployment_name"],
+    openai_api_key=openai_creds["OPENAI_API_KEY"],
+    azure_endpoint=openai_creds["azure_endpoint"],
+    openai_api_version=openai_creds["OPENAI_API_VERSION"],
+)
 
 
 def extract_from_pdf(pdf_path, file_name, markdown_file):
@@ -22,6 +35,12 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
         input_folder, "extracted_output_1", file_name, "images"
     )
     os.makedirs(images_output_path, exist_ok=True)
+
+    tables_as_images_output_path = os.path.join(
+        input_folder, "extracted_output_1", file_name, "tables_as_images"
+    )
+    os.makedirs(tables_as_images_output_path, exist_ok=True)
+
     data = extract_text_and_tables(pdf_path)
 
     for page, content in data.items():
@@ -40,20 +59,28 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
         data[page]["plain_text"] = text
         data[page]["table_presence"] = table_presence
-        # print("page : ", page)
-        # print("text : ", text)
-        # print("tables : ", tables)
 
-        # print("debugging")
+    # for page, content in data.items():
+
+    #     if content["table_presence"]:
+    #         print("table present on page : ", page)
+    #     else:
+    #         print("table not present on page : ", page)
 
     for page, content in data.items():
 
-        # print("text : ", content["text"])
-        # print("plain_text : ", content["plain_text"])
         if content["table_presence"]:
-            print("table present on page : ", page)
+            print("Table present on page:", page)
+
+            base64_image = capture_page_as_base64(
+                pdf_path, page, tables_as_images_output_path
+            )
+            summary = az_llm.invoke(
+                f"Summarize all the tables from the following image (base64 format): {base64_image}"
+            )
+            print(f"Summary for page {page}: {summary}")
         else:
-            print("table not present on page : ", page)
+            print("Table not present on page:", page)
 
     print("debugging")
 
@@ -233,6 +260,7 @@ def extract_text_and_tables(pdf_path):
 
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
+
             if page_num == 11:  # Limit to first 5 pages
                 break
 
@@ -242,6 +270,21 @@ def extract_text_and_tables(pdf_path):
             page_data[page_num + 1] = {"text": text, "tables": tables}
 
     return page_data
+
+
+def capture_page_as_base64(pdf_path, page_num, tables_as_images_output_path):
+
+    images = convert_from_path(
+        pdf_path, first_page=page_num, last_page=page_num, dpi=100
+    )
+    image_path = os.path.join(tables_as_images_output_path, f"page_{page_num}.png")
+    image = images[0].resize((400, 400)).convert("L")
+    image.save(image_path, "WEBP", quality=50)  # Save the screenshot
+
+    with open(image_path, "rb") as image_file:
+        base64_string = base64.b64encode(image_file.read()).decode("utf-8")
+
+    return base64_string
 
 
 for file in os.listdir(input_folder):
