@@ -1,7 +1,8 @@
-import os, fitz, docx2txt, pdfplumber, base64, json
+import os, docx2txt, pdfplumber, base64, json, io
 from pdf2image import convert_from_path
 from docx2pdf import convert
 from mimetypes import guess_type
+from PIL import Image
 
 from pathlib import Path
 from langchain.chat_models import AzureChatOpenAI
@@ -45,9 +46,12 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
     for page, content in data.items():
 
-        text = content["text"]
-        tables = content["tables"]
-        images = content["images"]
+        text, tables, images, page_data = (
+            content["text"],
+            content["tables"],
+            content["images"],
+            content["page"],
+        )
 
         table_texts = [
             cell for table in tables for row in table for cell in row if cell
@@ -63,37 +67,49 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
         page_full_text = text
 
-        # if table_presence:
-        #     print("Table present on page:", page)
+        if len(images) > 0:
 
-        #     base64_image = capture_page_as_base64(
-        #         pdf_path, page, tables_as_images_output_path
-        #     )
+            # for i, img in enumerate(images):
 
-        #     messages_base64 = [
-        #         HumanMessage(
-        #             content=[
-        #                 {
-        #                     "type": "text",
-        #                     "text": "Summarize all the tables in the image. Remember to summarize only tables as it is and no information should be left mentioned in the tables.",
-        #                 },
-        #                 {"type": "image_url", "image_url": {"url": base64_image}},
-        #             ]
-        #         )
-        #     ]
+            #     x0, top, x1, bottom = img["x0"], img["top"], img["x1"], img["bottom"]
+            #     image = page_data.to_image().original
 
-        #     response_base64 = az_llm.invoke(messages_base64)
-        #     table_summary = response_base64.content
-        #     print(f"Table summary for page {page}: {table_summary}")
+            #     cropped_img = image.crop((x0, top, x1, bottom))
+            #     print("cropped_img : ", cropped_img)
+            pass
+            # add logic here to save image, read again and convert to base_64
 
-        #     page_full_text += "\n" + table_summary + "\n"
-        #     print("page_full_text : ", page_full_text)
+        if table_presence:
+            print("Table present on page:", page)
 
-        # else:
+            base64_image = capture_page_as_base64(
+                pdf_path, page, tables_as_images_output_path
+            )
 
-        #     print("Table not present on page:", page)
+            messages_base64 = [
+                HumanMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "Summarize all the tables in the image. Remember to summarize only tables as it is and no information should be left mentioned in the tables.",
+                        },
+                        {"type": "image_url", "image_url": {"url": base64_image}},
+                    ]
+                )
+            ]
 
-        # data[page]["page_plain_text"] = page_full_text
+            response_base64 = az_llm.invoke(messages_base64)
+            table_summary = response_base64.content
+            print(f"Table summary for page {page}: {table_summary}")
+
+            page_full_text += "\n" + table_summary + "\n"
+            print("page_full_text : ", page_full_text)
+
+        else:
+
+            print("Table not present on page:", page)
+
+        data[page]["page_plain_text"] = page_full_text
 
     print("debugging")
 
@@ -105,6 +121,7 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
     #     text = page.get_text().strip()
     #     tables = page.find_tables()
 
+    #     # if text is present in page, save all images in the page to a folder
     #     if len(text) > 20:
 
     #         images = page.get_images(full=True)
@@ -124,7 +141,7 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
     #                 img_file.write(image_bytes)
 
     #     else:
-
+    #         # if text is not present in page, convert page to image and save it in the folder
     #         images = convert_from_path(
     #             pdf_path,
     #             first_page=page_num + 1,
@@ -228,7 +245,12 @@ def extract_text_tables_and_images(pdf_path):
             tables = page.extract_tables()
             images = page.images
 
-            page_data[page_num + 1] = {"text": text, "tables": tables, "images": images}
+            page_data[page_num + 1] = {
+                "page": page,
+                "text": text,
+                "tables": tables,
+                "images": images,
+            }
 
     return page_data
 
