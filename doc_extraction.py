@@ -41,12 +41,13 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
     )
     os.makedirs(tables_as_images_output_path, exist_ok=True)
 
-    data = extract_text_and_tables(pdf_path)
+    data = extract_text_tables_and_images(pdf_path)
 
     for page, content in data.items():
 
         text = content["text"]
         tables = content["tables"]
+        images = content["images"]
 
         table_texts = [
             cell for table in tables for row in table for cell in row if cell
@@ -57,78 +58,85 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
         table_presence = True if len(table_texts) > 0 else False
 
-        data[page]["plain_text"] = text
+        data[page]["page_plain_text"] = text
         data[page]["table_presence"] = table_presence
 
-    for page, content in data.items():
+        page_full_text = text
 
-        if content["table_presence"]:
-            print("Table present on page:", page)
+        # if table_presence:
+        #     print("Table present on page:", page)
 
-            base64_image = capture_page_as_base64(
-                pdf_path, page, tables_as_images_output_path
-            )
+        #     base64_image = capture_page_as_base64(
+        #         pdf_path, page, tables_as_images_output_path
+        #     )
 
-            messages_base64 = [
-                HumanMessage(
-                    content=[
-                        {
-                            "type": "text",
-                            "text": "Summarize all the tables in the image. Remember to summarize only tables as it is and no information should be left mentioned in the tables.",
-                        },
-                        {"type": "image_url", "image_url": {"url": base64_image}},
-                    ]
-                )
-            ]
+        #     messages_base64 = [
+        #         HumanMessage(
+        #             content=[
+        #                 {
+        #                     "type": "text",
+        #                     "text": "Summarize all the tables in the image. Remember to summarize only tables as it is and no information should be left mentioned in the tables.",
+        #                 },
+        #                 {"type": "image_url", "image_url": {"url": base64_image}},
+        #             ]
+        #         )
+        #     ]
 
-            response_base64 = az_llm.invoke(messages_base64)
-            summary = response_base64.content
-            print(f"Summary for page {page}: {summary}")
-        else:
-            print("Table not present on page:", page)
+        #     response_base64 = az_llm.invoke(messages_base64)
+        #     table_summary = response_base64.content
+        #     print(f"Table summary for page {page}: {table_summary}")
+
+        #     page_full_text += "\n" + table_summary + "\n"
+        #     print("page_full_text : ", page_full_text)
+
+        # else:
+
+        #     print("Table not present on page:", page)
+
+        # data[page]["page_plain_text"] = page_full_text
 
     print("debugging")
 
-    doc = fitz.open(pdf_path)
+    # doc = fitz.open(pdf_path)
 
-    for page_num in range(len(doc)):
+    # for page_num in range(len(doc)):
 
-        page = doc.load_page(page_num)
-        text = page.get_text().strip()
-        tables = page.find_tables()
+    #     page = doc.load_page(page_num)
+    #     text = page.get_text().strip()
+    #     tables = page.find_tables()
 
-        if len(text) > 20:
+    #     if len(text) > 20:
 
-            images = page.get_images(full=True)
-            for img_index, img in enumerate(images, start=1):
+    #         images = page.get_images(full=True)
+    #         for img_index, img in enumerate(images, start=1):
 
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                image_ext = base_image["ext"]
-                image_filename = (
-                    f"{file_name}_page{page_num + 1}_img{img_index}.{image_ext}"
-                )
+    #             xref = img[0]
+    #             base_image = doc.extract_image(xref)
+    #             image_bytes = base_image["image"]
+    #             image_ext = base_image["ext"]
+    #             image_filename = (
+    #                 f"{file_name}_page{page_num + 1}_img{img_index}.{image_ext}"
+    #             )
 
-                with open(
-                    os.path.join(images_output_path, image_filename), "wb"
-                ) as img_file:
-                    img_file.write(image_bytes)
+    #             with open(
+    #                 os.path.join(images_output_path, image_filename), "wb"
+    #             ) as img_file:
+    #                 img_file.write(image_bytes)
 
-        else:
+    #     else:
 
-            images = convert_from_path(
-                pdf_path,
-                first_page=page_num + 1,
-                last_page=page_num + 1,
-                poppler_path=POPPLER_PATH,
-            )
+    #         images = convert_from_path(
+    #             pdf_path,
+    #             first_page=page_num + 1,
+    #             last_page=page_num + 1,
+    #             poppler_path=POPPLER_PATH,
+    #         )
 
-            for i, img in enumerate(images):
-                image_filename = f"{file_name}_page{page_num + 1}_converted.png"
-                img.save(os.path.join(images_output_path, image_filename), "PNG")
+    #         for i, img in enumerate(images):
+    #             image_filename = f"{file_name}_page{page_num + 1}_converted.png"
+    #             img.save(os.path.join(images_output_path, image_filename), "PNG")
 
-    doc.close()
+    # doc.close()
 
 
 def extract_from_docx(docx_path, file_name):
@@ -206,19 +214,21 @@ def separate_text_and_tables_from_markdown(markdown_content):
     return "\n".join(text), tables
 
 
-def extract_text_and_tables(pdf_path):
+def extract_text_tables_and_images(pdf_path):
+
     page_data = {}
 
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
 
-            if page_num == 11:  # Limit to first 5 pages
+            if page_num == 8:  # Limit to first 5 pages
                 break
 
             text = page.extract_text()
             tables = page.extract_tables()
+            images = page.images
 
-            page_data[page_num + 1] = {"text": text, "tables": tables}
+            page_data[page_num + 1] = {"text": text, "tables": tables, "images": images}
 
     return page_data
 
@@ -233,7 +243,7 @@ def capture_page_as_base64(pdf_path, page_num, tables_as_images_output_path):
     image.save(image_path, "WEBP", quality=50)
 
     with open(image_path, "rb") as image_file:
-        
+
         base64_string = base64.b64encode(image_file.read()).decode("utf-8")
         mime_type, _ = guess_type(image_path)
         image_to_return = f"data:{mime_type};base64,{base64_string}"
