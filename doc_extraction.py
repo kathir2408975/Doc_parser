@@ -3,8 +3,6 @@ from pdf2image import convert_from_path
 from docx2pdf import convert
 from mimetypes import guess_type
 
-# import pandas as pd
-# from docling.document_converter import DocumentConverter
 from pathlib import Path
 from langchain.chat_models import AzureChatOpenAI
 from langchain_core.messages import HumanMessage
@@ -62,13 +60,6 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
         data[page]["plain_text"] = text
         data[page]["table_presence"] = table_presence
 
-    # for page, content in data.items():
-
-    #     if content["table_presence"]:
-    #         print("table present on page : ", page)
-    #     else:
-    #         print("table not present on page : ", page)
-
     for page, content in data.items():
 
         if content["table_presence"]:
@@ -77,9 +68,7 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
             base64_image = capture_page_as_base64(
                 pdf_path, page, tables_as_images_output_path
             )
-            # summary = az_llm.invoke(
-            #     f"Summarize all the tables from the following image (base64 format): {base64_image}"
-            # )
+
             messages_base64 = [
                 HumanMessage(
                     content=[
@@ -100,46 +89,7 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
     print("debugging")
 
-    # # for docling conversion
-    # converter = DocumentConverter()
-    # result = converter.convert(pdf_path, max_num_pages=10)
-
-    # text_file_path = os.path.join(output_path, f"{file_name}.txt")
-    # table_file_path = os.path.join(output_path, f"{file_name}_table.txt")
-
-    # with open(markdown_file, "r", encoding="utf-8") as file:
-    #     markdown_content = file.read()
-
-    # text_from_pdf, tables_from_pdf = separate_text_and_tables_from_markdown(markdown_content)
-
-    # with open(text_file_path, "w", encoding="utf-8") as f:
-    #     f.write(text_from_pdf)
-
-    # with open(table_file_path, "w", encoding="utf-8") as f:
-    #     for table in tables_from_pdf:
-    #         f.write(table)
-
-    # # pdfplumber
-    # with pdfplumber.open(pdf_path) as pdf:
-    #     for page_num, page in enumerate(pdf.pages, start=1):
-    #         text = page.extract_text()
-    #         tables = page.extract_tables()
-
-    #         for table_num, table in enumerate(tables, start=1):
-
-    #             for row in table:
-    #                 for txt in row:
-
-    #                     if txt in text and txt != "":
-    #                         text = text.replace(txt, " ")
-
-    #         print(f"\nPage {page_num}\n")
-    #         print(f"\nText:\n{text}\n")
-    #         print(f"\nTables:\n{tables}\n")
-    #         print("testing")
-
     doc = fitz.open(pdf_path)
-    full_text = ""
 
     for page_num in range(len(doc)):
 
@@ -147,16 +97,7 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
         text = page.get_text().strip()
         tables = page.find_tables()
 
-        # if page_num == 12:
-        #     tables = page.find_tables()
-        #     df_table = pd.DataFrame(tables.tables[0].extract())
-        #     df_table = df_table.dropna(axis=1, how="all")
-        #     df_table = df_table.loc[:, ~(df_table.isna() | (df_table == "")).all()]
-        #     print(df_table)
-
         if len(text) > 20:
-
-            # full_text += f"\n--- Page {page_num + 1} ---\n{text}\n"
 
             images = page.get_images(full=True)
             for img_index, img in enumerate(images, start=1):
@@ -189,18 +130,12 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
 
     doc.close()
 
-    # Save all collected text in one file
-    # text_file_path = os.path.join(output_path, f"{file_name}.txt")
-    # with open(text_file_path, "w", encoding="utf-8") as f:
-    #     f.write(full_text)
-
 
 def extract_from_docx(docx_path, file_name):
 
     output_path = os.path.join(input_folder, "extracted_output_1", file_name)
     os.makedirs(output_path, exist_ok=True)
 
-    # Extract text and images
     text = docx2txt.process(docx_path, output_path)
 
     full_text = ""
@@ -280,8 +215,8 @@ def extract_text_and_tables(pdf_path):
             if page_num == 11:  # Limit to first 5 pages
                 break
 
-            text = page.extract_text()  # Extract text using pdfplumber
-            tables = page.extract_tables()  # Extract tables using pdfplumber
+            text = page.extract_text()
+            tables = page.extract_tables()
 
             page_data[page_num + 1] = {"text": text, "tables": tables}
 
@@ -295,9 +230,10 @@ def capture_page_as_base64(pdf_path, page_num, tables_as_images_output_path):
     )
     image_path = os.path.join(tables_as_images_output_path, f"page_{page_num}.png")
     image = images[0].resize((400, 400)).convert("L")
-    image.save(image_path, "WEBP", quality=50)  # Save the screenshot
+    image.save(image_path, "WEBP", quality=50)
 
     with open(image_path, "rb") as image_file:
+        
         base64_string = base64.b64encode(image_file.read()).decode("utf-8")
         mime_type, _ = guess_type(image_path)
         image_to_return = f"data:{mime_type};base64,{base64_string}"
