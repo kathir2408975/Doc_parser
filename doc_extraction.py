@@ -1,4 +1,4 @@
-import os, docx2txt, pdfplumber, base64, json, io
+import os, docx2txt, pdfplumber, base64, json, io, json
 from pdf2image import convert_from_path
 from docx2pdf import convert
 from mimetypes import guess_type
@@ -39,6 +39,8 @@ def extract_from_pdf(pdf_path, file_name):
 
     data = extract_text_tables_images_from_pdf(pdf_path)
     for page, content in data.items():
+
+        data[page]["page_number"] = content["page"].page_number
 
         text, tables, images, page_data = (
             content["text"],
@@ -132,6 +134,15 @@ def extract_from_pdf(pdf_path, file_name):
 
         for page, page_content in data.items():
             file.write("\n" + page_content["page_full_text"] + "\n")
+
+    for key in data:
+        data[key] = {
+            "page_number": data[key]["page_number"],
+            "page_full_text": data[key]["page_full_text"],
+        }
+
+    with open(os.path.join(output_path, f"{file_name}.json"), "w") as json_file:
+        json.dump(data, json_file, indent=4)
 
     print("debugging")
 
@@ -245,7 +256,7 @@ def extract_text_tables_images_from_pdf(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
 
-            if page_num == 15:
+            if page_num == 2:
                 break
 
             text = page.extract_text()
