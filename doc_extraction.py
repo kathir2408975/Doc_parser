@@ -23,7 +23,7 @@ az_llm = AzureChatOpenAI(
 )
 
 
-def extract_from_pdf(pdf_path, file_name, markdown_file):
+def extract_from_pdf(pdf_path, file_name):
 
     output_path = os.path.join(input_folder, "extracted_output_1", file_name)
     os.makedirs(output_path, exist_ok=True)
@@ -84,12 +84,12 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
                 if eval(image_summary) is not None:
 
                     print("Image present on page:", page)
-                    print(
-                        f"Image summary for page {page}: and image {i} :  {image_summary}"
-                    )
+                    # print(
+                    #     f"Image summary for page {page}: and image {i} :  {image_summary}"
+                    # )
                     page_full_text += "\n" + image_summary + "\n"
 
-                print("page_full_text : ", page_full_text)
+                # print("page_full_text : ", page_full_text)
 
         if table_texts:
 
@@ -117,14 +117,21 @@ def extract_from_pdf(pdf_path, file_name, markdown_file):
             # print(f"Table summary for page {page}: {table_summary}")
 
             page_full_text += "\n" + table_summary + "\n"
-            print("page_full_text : ", page_full_text)
+            # print("page_full_text : ", page_full_text)
 
         data[page]["page_full_text"] = page_full_text
 
         if len(data[page]["text"]) > len(data[page]["page_full_text"]):
 
             data[page]["page_full_text"] = data[page]["text"]
-            print("page : ", page)
+            # print("page : ", page)
+
+    with open(
+        os.path.join(output_path, f"{file_name}.txt"), "w", encoding="utf-8"
+    ) as file:
+
+        for page, page_content in data.items():
+            file.write("\n" + page_content["page_full_text"] + "\n")
 
     print("debugging")
 
@@ -238,7 +245,7 @@ def extract_text_tables_images_from_pdf(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
 
-            if page_num == 3:
+            if page_num == 15:
                 break
 
             text = page.extract_text()
@@ -262,12 +269,11 @@ for file in os.listdir(input_folder):
 
     file_name, ext = os.path.splitext(file)
     ext = ext.lower()
-    markdown_file = "docling_output_full_file.txt"
 
     if os.path.isfile(file_path):
 
         if ext == ".pdf":
-            extract_from_pdf(file_path, file_name, markdown_file)
+            extract_from_pdf(file_path, file_name)
         elif ext == ".docx":
             extract_from_docx(file_path, file_name)
 
