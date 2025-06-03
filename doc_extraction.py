@@ -139,12 +139,16 @@ def extract_from_pdf(pdf_path, file_name):
         data[key] = {
             "page_number": data[key]["page_number"],
             "page_full_text": data[key]["page_full_text"],
+            "text": data[key]["text"],
+            "page_plain_text": data[key]["page_plain_text"],
         }
 
     with open(os.path.join(output_path, f"{file_name}.json"), "w") as json_file:
         json.dump(data, json_file, indent=4)
 
-    print("debugging")
+    path_of_saved_full_text = output_path, f"{file_name}.txt"
+    # return path_of_saved_full_text
+    # print("debugging")
 
     # doc = fitz.open(pdf_path)
 
@@ -234,6 +238,8 @@ def extract_from_docx(docx_path, file_name):
             os.rename(old_path, new_path)
             img_counter += 1
 
+    print("done")
+
 
 def get_image_as_base64(image, image_path):
 
@@ -256,8 +262,8 @@ def extract_text_tables_images_from_pdf(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
 
-            if page_num == 2:
-                break
+            # if page_num == 2:
+            #     break
 
             text = page.extract_text()
             tables = page.extract_tables()
