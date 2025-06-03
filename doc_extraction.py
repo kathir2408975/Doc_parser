@@ -40,6 +40,7 @@ def extract_from_pdf(pdf_path, file_name):
     data = extract_text_tables_images_from_pdf(pdf_path)
     for page, content in data.items():
 
+        print(f"Extracting full text on page : {page}")
         data[page]["page_number"] = content["page"].page_number
 
         text, tables, images, page_data = (
@@ -80,16 +81,21 @@ def extract_from_pdf(pdf_path, file_name):
                     )
                 ]
 
-                response_base64 = az_llm.invoke(messages_base64)
-                image_summary = response_base64.content
+                try:
+                    response_base64 = az_llm.invoke(messages_base64)
+                    image_summary = response_base64.content
 
-                if eval(image_summary) is not None:
+                    if eval(image_summary) is not None:
 
-                    print("Image present on page:", page)
-                    # print(
-                    #     f"Image summary for page {page}: and image {i} :  {image_summary}"
-                    # )
-                    page_full_text += "\n" + image_summary + "\n"
+                        print("Image present on page:", page)
+                        # print(
+                        #     f"Image summary for page {page}: and image {i} :  {image_summary}"
+                        # )
+                        page_full_text += "\n" + image_summary + "\n"
+
+                except Exception as e:
+
+                    print("LLM exception occured for image on page : ", page)
 
                 # print("page_full_text : ", page_full_text)
 
@@ -114,12 +120,18 @@ def extract_from_pdf(pdf_path, file_name):
                 )
             ]
 
-            response_base64 = az_llm.invoke(messages_base64)
-            table_summary = response_base64.content
-            # print(f"Table summary for page {page}: {table_summary}")
+            try:
 
-            page_full_text += "\n" + table_summary + "\n"
-            # print("page_full_text : ", page_full_text)
+                response_base64 = az_llm.invoke(messages_base64)
+                table_summary = response_base64.content
+                # print(f"Table summary for page {page}: {table_summary}")
+
+                page_full_text += "\n" + table_summary + "\n"
+                # print("page_full_text : ", page_full_text)
+
+            except Exception as e:
+
+                print("LLM exception occured for table on page : ", page)
 
         data[page]["page_full_text"] = page_full_text
 
@@ -258,16 +270,17 @@ def get_image_as_base64(image, image_path):
 def extract_text_tables_images_from_pdf(pdf_path):
 
     page_data = {}
-
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages):
 
             # if page_num == 2:
             #     break
 
-            text = page.extract_text()
-            tables = page.extract_tables()
-            images = page.images
+            text, tables, images = (
+                page.extract_text(),
+                page.extract_tables(),
+                page.images,
+            )
 
             page_data[page_num + 1] = {
                 "page": page,
